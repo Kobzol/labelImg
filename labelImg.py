@@ -66,6 +66,9 @@ class WindowMixin(object):
         return toolbar
 
 
+DEFAULT_BOX_SIZE = 50
+
+
 class MainWindow(QMainWindow, WindowMixin):
     FIT_WINDOW, FIT_WIDTH, MANUAL_ZOOM = list(range(3))
 
@@ -86,6 +89,9 @@ class MainWindow(QMainWindow, WindowMixin):
         self.defaultSaveDir = defaultSaveDir
         self.usingPascalVocFormat = True
         self.usingYoloFormat = False
+
+        # Ullmanna mode
+        self.ullmanna_auto_move = True
 
         # For loading all image under a directory
         self.mImgList = []
@@ -113,6 +119,57 @@ class MainWindow(QMainWindow, WindowMixin):
 
         listLayout = QVBoxLayout()
         listLayout.setContentsMargins(0, 0, 0, 0)
+
+        # Ullmanna width
+        # hbox, try int conversion, set buttion, default value
+        self.box_wrapper = QHBoxLayout()
+        ulmannaBoxSize = QLineEdit(str(DEFAULT_BOX_SIZE))
+        ulmannaBoxSize.setValidator(QIntValidator(1, 1000, self))
+        ulmannaBoxConfirm = QPushButton()
+        ulmannaBoxConfirm.setText("Set size")
+
+        def set_size(value):
+            try:
+                val = int(value)
+                self.canvas.setBoxSize(val)
+            except:
+                print("Invalid box size value: {}".format(value))
+        ulmannaBoxConfirm.clicked.connect(lambda _: set_size(ulmannaBoxSize.text()))
+        self.box_wrapper.addWidget(ulmannaBoxSize)
+        self.box_wrapper.addWidget(ulmannaBoxConfirm)
+        listLayout.addLayout(self.box_wrapper)
+
+        automove_checkbox = QCheckBox()
+        automove_checkbox.setChecked(self.ullmanna_auto_move)
+        automove_checkbox.setText("One box per image")
+
+        def set_automove(val):
+            self.ullmanna_auto_move = val
+            print("One box per image {}".format("enabled" if val else "disabled"))
+
+        def toggle_automove():
+            current = automove_checkbox.isChecked()
+            automove_checkbox.setChecked(not current)
+            set_automove(not current)
+
+        automove_checkbox.clicked.connect(lambda _: set_automove(automove_checkbox.isChecked()))
+        listLayout.addWidget(automove_checkbox)
+
+        quickbox_checkbox = QCheckBox()
+        quickbox_checkbox.setChecked(True)
+        quickbox_checkbox.setText("Quickbox mode")
+
+        def set_quickbox(val):
+            self.canvas.setQuickBox(val)
+            print("Quickbox mode {}".format("enabled" if val else "disabled"))
+
+        def toggle_quickbox():
+            current = quickbox_checkbox.isChecked()
+            quickbox_checkbox.setChecked(not current)
+            set_quickbox(not current)
+
+        quickbox_checkbox.clicked.connect(lambda _: set_quickbox(quickbox_checkbox.isChecked()))
+        listLayout.addWidget(quickbox_checkbox)
 
         # Create a widget for using default label
         self.useDefaultLabelCheckbox = QCheckBox(getStr('useDefaultLabel'))
@@ -165,7 +222,7 @@ class MainWindow(QMainWindow, WindowMixin):
         self.zoomWidget = ZoomWidget()
         self.colorDialog = ColorDialog(parent=self)
 
-        self.canvas = Canvas(parent=self)
+        self.canvas = Canvas(DEFAULT_BOX_SIZE, parent=self)
         self.canvas.zoomRequest.connect(self.zoomRequest)
         self.canvas.setDrawingShapeToSquare(settings.get(SETTING_DRAW_SQUARE, False))
 
@@ -179,6 +236,7 @@ class MainWindow(QMainWindow, WindowMixin):
         self.scrollArea = scroll
         self.canvas.scrollRequest.connect(self.scrollRequest)
 
+        self.canvas.boxCreated.connect(self.saveBoxAndMove)
         self.canvas.newShape.connect(self.newShape)
         self.canvas.shapeMoved.connect(self.setDirty)
         self.canvas.selectionChanged.connect(self.shapeSelectionChanged)
@@ -260,6 +318,11 @@ class MainWindow(QMainWindow, WindowMixin):
 
         help = action(getStr('tutorial'), self.showTutorialDialog, None, 'help', getStr('tutorialDetail'))
         showInfo = action(getStr('info'), self.showInfoDialog, None, 'help', getStr('info'))
+
+        quickBoxAction = action("Quickbox toggle", toggle_quickbox,
+                                'q', 'quickbox', "Quickbox toggle")
+        automoveAction = action("One box per image", toggle_automove,
+                                'o', 'automove', "One box per image")
 
         zoom = QWidgetAction(self)
         zoom.setDefaultWidget(self.zoomWidget)
@@ -353,7 +416,7 @@ class MainWindow(QMainWindow, WindowMixin):
         # Auto saving : Enable auto saving if pressing next
         self.autoSaving = QAction(getStr('autoSaveMode'), self)
         self.autoSaving.setCheckable(True)
-        self.autoSaving.setChecked(settings.get(SETTING_AUTO_SAVE, False))
+        self.autoSaving.setChecked(settings.get(SETTING_AUTO_SAVE, True))
         # Sync single class mode from PR#106
         self.singleClassMode = QAction(getStr('singleClsMode'), self)
         self.singleClassMode.setShortcut("Ctrl+Shift+S")
@@ -377,7 +440,7 @@ class MainWindow(QMainWindow, WindowMixin):
             labels, advancedMode, None,
             hideAll, showAll, None,
             zoomIn, zoomOut, zoomOrg, None,
-            fitWindow, fitWidth))
+            fitWindow, fitWidth, quickBoxAction, automoveAction))
 
         self.menus.file.aboutToShow.connect(self.updateFileMenu)
 
@@ -475,6 +538,12 @@ class MainWindow(QMainWindow, WindowMixin):
         # Open Dir if deafult file
         if self.filePath and os.path.isdir(self.filePath):
             self.openDirDialog(dirpath=self.filePath, silent=True)
+
+    def saveBoxAndMove(self):
+        self.addLabel(self.canvas.setLastLabel("sugar-beet"))
+        self.setDirty()
+        if self.ullmanna_auto_move:
+            self.openNextImg()
 
     def keyReleaseEvent(self, event):
         if event.key() == Qt.Key_Control:
