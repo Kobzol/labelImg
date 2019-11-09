@@ -224,27 +224,35 @@ class Canvas(QWidget):
         self.box_size = box_size
         self.repaint()
 
+    def createBox(self, pos=None):
+        if pos is None:
+            pos = self.mousepos
+
+        if self.quickbox:
+            if not self.outOfPixmap(pos):
+                shape = Shape(label="sugar-beet")
+                dim = self.box_size / 2
+                x = pos.x()
+                y = pos.y()
+                points = (
+                    (x - dim, y - dim),
+                    (x + dim, y - dim),
+                    (x + dim, y + dim),
+                    (x - dim, y + dim)
+                )
+                for p in points:
+                    shape.addPoint(QPointF(*p))
+                shape.close()
+                self.shapes.append(shape)
+                self.boxCreated.emit()
+                return True
+        return False
+
     def mousePressEvent(self, ev):
         pos = self.transformPos(ev.pos())
 
         if ev.button() == Qt.LeftButton:
-            if self.quickbox:
-                if not self.outOfPixmap(pos):
-                    shape = Shape(label="sugar-beet")
-                    dim = self.box_size / 2
-                    x = pos.x()
-                    y = pos.y()
-                    points = (
-                        (x - dim, y - dim),
-                        (x + dim, y - dim),
-                        (x + dim, y + dim),
-                        (x - dim, y + dim)
-                    )
-                    for p in points:
-                        shape.addPoint(QPointF(*p))
-                    shape.close()
-                    self.shapes.append(shape)
-                    self.boxCreated.emit()
+            if self.createBox(pos):
                 return
 
             if self.drawing():

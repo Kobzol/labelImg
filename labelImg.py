@@ -323,6 +323,8 @@ class MainWindow(QMainWindow, WindowMixin):
                                 'q', 'quickbox', "Quickbox toggle")
         automoveAction = action("One box per image", toggle_automove,
                                 'o', 'automove', "One box per image")
+        createQuickBoxAction = action("Create quickbox", lambda: self.canvas.createBox(),
+                                't', 'createquickbox', "Create quickbox")
 
         zoom = QWidgetAction(self)
         zoom.setDefaultWidget(self.zoomWidget)
@@ -440,7 +442,7 @@ class MainWindow(QMainWindow, WindowMixin):
             labels, advancedMode, None,
             hideAll, showAll, None,
             zoomIn, zoomOut, zoomOrg, None,
-            fitWindow, fitWidth, quickBoxAction, automoveAction))
+            fitWindow, fitWidth, quickBoxAction, automoveAction, createQuickBoxAction))
 
         self.menus.file.aboutToShow.connect(self.updateFileMenu)
 
@@ -449,6 +451,7 @@ class MainWindow(QMainWindow, WindowMixin):
         addActions(self.canvas.menus[1], (
             action('&Copy here', self.copyShape),
             action('&Move here', self.moveShape)))
+
 
         self.tools = self.toolbar('Tools')
         self.actions.beginner = (
