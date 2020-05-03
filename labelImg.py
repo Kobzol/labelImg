@@ -543,7 +543,11 @@ class MainWindow(QMainWindow, WindowMixin):
             self.openDirDialog(dirpath=self.filePath, silent=True)
 
     def saveBoxAndMove(self):
-        self.addLabel(self.canvas.setLastLabel("sugar-beet"))
+        label = "sugar-beet"
+        if self.useDefaultLabelCheckbox.isChecked():
+            label = self.defaultLabelTextLine.text()
+
+        self.addLabel(self.canvas.setLastLabel(label))
         self.setDirty()
         if self.ullmanna_auto_move:
             self.openNextImg()
