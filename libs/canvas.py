@@ -28,14 +28,16 @@ class Canvas(QWidget):
     selectionChanged = pyqtSignal(bool)
     shapeMoved = pyqtSignal()
     drawingPolygon = pyqtSignal(bool)
+    circleCreated = pyqtSignal(str)
 
     CREATE, EDIT = list(range(2))
 
     epsilon = 11.0
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, circle_size, *args, **kwargs):
         super(Canvas, self).__init__(*args, **kwargs)
         # Initialise local state.
+        self.circle_size = circle_size
         self.mode = self.EDIT
         self.shapes = []
         self.current = None
@@ -62,6 +64,9 @@ class Canvas(QWidget):
         self.setFocusPolicy(Qt.WheelFocus)
         self.verified = False
         self.drawSquare = False
+
+        self.mousepos = None
+        self.quickbox = True
 
     def setDrawingColor(self, qColor):
         self.drawingLineColor = qColor
@@ -104,6 +109,8 @@ class Canvas(QWidget):
     def mouseMoveEvent(self, ev):
         """Update line with last point and current coordinates."""
         pos = self.transformPos(ev.pos())
+
+        self.mousepos = pos
 
         # Update coordinates in status bar if image is opened
         window = self.parent().window()
@@ -180,7 +187,7 @@ class Canvas(QWidget):
             # Look for a nearby vertex to highlight. If that fails,
             # check if we happen to be inside a shape.
             index = shape.nearestVertex(pos, self.epsilon)
-            if index is not None:
+            """if index is not None:
                 if self.selectedVertex():
                     self.hShape.highlightClear()
                 self.hVertex, self.hShape = index, shape
@@ -189,8 +196,8 @@ class Canvas(QWidget):
                 self.setToolTip("Click & drag to move point")
                 self.setStatusTip(self.toolTip())
                 self.update()
-                break
-            elif shape.containsPoint(pos):
+                break"""
+            if shape.containsPoint(pos):
                 if self.selectedVertex():
                     self.hShape.highlightClear()
                 self.hVertex, self.hShape = None, shape
@@ -206,6 +213,36 @@ class Canvas(QWidget):
                 self.update()
             self.hVertex, self.hShape = None, None
             self.overrideCursor(CURSOR_DEFAULT)
+
+        self.repaint()
+
+    def setCircleSize(self, box_size):
+        self.circle_size = box_size
+        self.repaint()
+
+    def createCircle(self, label, pos=None):
+        if pos is None:
+            pos = self.mousepos
+
+        if self.quickbox:
+            if not self.outOfPixmap(pos):
+                shape = Shape(label=label)
+                dim = self.circle_size
+                x = pos.x()
+                y = pos.y()
+                points = (
+                    (x - dim, y - dim),
+                    (x + dim, y - dim),
+                    (x + dim, y + dim),
+                    (x - dim, y + dim)
+                )
+                for p in points:
+                    shape.addPoint(QPointF(*p))
+                shape.close()
+                self.shapes.append(shape)
+                self.circleCreated.emit(label)
+                return True
+        return False
 
     def mousePressEvent(self, ev):
         pos = self.transformPos(ev.pos())
@@ -445,42 +482,52 @@ class Canvas(QWidget):
         p.translate(self.offsetToCenter())
 
         p.drawPixmap(0, 0, self.pixmap)
+
+        if self.quickbox:
+            if self.mousepos and self.pixmap.width() > 0:
+                x = self.mousepos.x()
+                y = self.mousepos.y()
+                center = QPointF(x, y)
+                Shape.drawCircle(p, center, self.circle_size)
+
         Shape.scale = self.scale
         for shape in self.shapes:
             if (shape.selected or not self._hideBackround) and self.isVisible(shape):
                 shape.fill = shape.selected or shape == self.hShape
                 shape.paint(p)
-        if self.current:
-            self.current.paint(p)
-            self.line.paint(p)
-        if self.selectedShapeCopy:
-            self.selectedShapeCopy.paint(p)
 
-        # Paint rect
-        if self.current is not None and len(self.line) == 2:
-            leftTop = self.line[0]
-            rightBottom = self.line[1]
-            rectWidth = rightBottom.x() - leftTop.x()
-            rectHeight = rightBottom.y() - leftTop.y()
-            p.setPen(self.drawingRectColor)
-            brush = QBrush(Qt.BDiagPattern)
-            p.setBrush(brush)
-            p.drawRect(leftTop.x(), leftTop.y(), rectWidth, rectHeight)
+        if not self.quickbox:
+            if self.current:
+                self.current.paint(p)
+                self.line.paint(p)
+            if self.selectedShapeCopy:
+                self.selectedShapeCopy.paint(p)
 
-        if self.drawing() and not self.prevPoint.isNull() and not self.outOfPixmap(self.prevPoint):
-            p.setPen(QColor(0, 0, 0))
-            p.drawLine(self.prevPoint.x(), 0, self.prevPoint.x(), self.pixmap.height())
-            p.drawLine(0, self.prevPoint.y(), self.pixmap.width(), self.prevPoint.y())
+            # Paint rect
+            if self.current is not None and len(self.line) == 2:
+                leftTop = self.line[0]
+                rightBottom = self.line[1]
+                rectWidth = rightBottom.x() - leftTop.x()
+                rectHeight = rightBottom.y() - leftTop.y()
+                p.setPen(self.drawingRectColor)
+                brush = QBrush(Qt.BDiagPattern)
+                p.setBrush(brush)
+                p.drawRect(leftTop.x(), leftTop.y(), rectWidth, rectHeight)
 
-        self.setAutoFillBackground(True)
-        if self.verified:
-            pal = self.palette()
-            pal.setColor(self.backgroundRole(), QColor(184, 239, 38, 128))
-            self.setPalette(pal)
-        else:
-            pal = self.palette()
-            pal.setColor(self.backgroundRole(), QColor(232, 232, 232, 255))
-            self.setPalette(pal)
+            if self.drawing() and not self.prevPoint.isNull() and not self.outOfPixmap(self.prevPoint):
+                p.setPen(QColor(0, 0, 0))
+                p.drawLine(self.prevPoint.x(), 0, self.prevPoint.x(), self.pixmap.height())
+                p.drawLine(0, self.prevPoint.y(), self.pixmap.width(), self.prevPoint.y())
+
+            self.setAutoFillBackground(True)
+            if self.verified:
+                pal = self.palette()
+                pal.setColor(self.backgroundRole(), QColor(184, 239, 38, 128))
+                self.setPalette(pal)
+            else:
+                pal = self.palette()
+                pal.setColor(self.backgroundRole(), QColor(232, 232, 232, 255))
+                self.setPalette(pal)
 
         p.end()
 

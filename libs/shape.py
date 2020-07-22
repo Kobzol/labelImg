@@ -61,6 +61,15 @@ class Shape(object):
             # is used for drawing the pending line a different color.
             self.line_color = line_color
 
+    @staticmethod
+    def drawCircle(painter, point, size, color=None):
+        if color is None:
+            color = QColor(255, 0, 0)
+        pen = QPen(color, 1)
+        painter.setPen(pen)
+        painter.drawEllipse(point, size, size)
+        painter.drawPoint(point)
+
     def close(self):
         self._closed = True
 
@@ -85,6 +94,13 @@ class Shape(object):
         self._closed = False
 
     def paint(self, painter):
+        bbox = self.boundingRect()
+        center = bbox.center()
+        radius = bbox.width() / 2
+        color = QColor(255, 0, 0) if self.label == "head" else QColor(0, 0, 255)
+        Shape.drawCircle(painter, center, radius, color=color)
+        return
+
         if self.points:
             color = self.select_line_color if self.selected else self.line_color
             pen = QPen(color)

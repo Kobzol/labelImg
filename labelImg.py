@@ -66,6 +66,9 @@ class WindowMixin(object):
         return toolbar
 
 
+DEFAULT_CIRCLE_SIZE = 5
+
+
 class MainWindow(QMainWindow, WindowMixin):
     FIT_WINDOW, FIT_WIDTH, MANUAL_ZOOM = list(range(3))
 
@@ -113,6 +116,25 @@ class MainWindow(QMainWindow, WindowMixin):
 
         listLayout = QVBoxLayout()
         listLayout.setContentsMargins(0, 0, 0, 0)
+
+        # Ryby circle width
+        # hbox, try int conversion, set buttion, default value
+        self.box_wrapper = QHBoxLayout()
+        rybyBoxSize = QLineEdit(str(DEFAULT_CIRCLE_SIZE))
+        rybyBoxSize.setValidator(QIntValidator(1, 1000, self))
+        rybyBoxSizeConfirm = QPushButton()
+        rybyBoxSizeConfirm.setText("Set circle size")
+
+        def set_size(value):
+            try:
+                val = int(value)
+                self.canvas.setCircleSize(val)
+            except:
+                print("Invalid box size value: {}".format(value))
+        rybyBoxSizeConfirm.clicked.connect(lambda _: set_size(rybyBoxSize.text()))
+        self.box_wrapper.addWidget(rybyBoxSize)
+        self.box_wrapper.addWidget(rybyBoxSizeConfirm)
+        listLayout.addLayout(self.box_wrapper)
 
         # Create a widget for using default label
         self.useDefaultLabelCheckbox = QCheckBox(getStr('useDefaultLabel'))
@@ -165,7 +187,7 @@ class MainWindow(QMainWindow, WindowMixin):
         self.zoomWidget = ZoomWidget()
         self.colorDialog = ColorDialog(parent=self)
 
-        self.canvas = Canvas(parent=self)
+        self.canvas = Canvas(DEFAULT_CIRCLE_SIZE, parent=self)
         self.canvas.zoomRequest.connect(self.zoomRequest)
         self.canvas.setDrawingShapeToSquare(settings.get(SETTING_DRAW_SQUARE, False))
 
@@ -179,6 +201,7 @@ class MainWindow(QMainWindow, WindowMixin):
         self.scrollArea = scroll
         self.canvas.scrollRequest.connect(self.scrollRequest)
 
+        self.canvas.circleCreated.connect(self.saveCircle)
         self.canvas.newShape.connect(self.newShape)
         self.canvas.shapeMoved.connect(self.setDirty)
         self.canvas.selectionChanged.connect(self.shapeSelectionChanged)
@@ -260,6 +283,11 @@ class MainWindow(QMainWindow, WindowMixin):
 
         help = action(getStr('tutorial'), self.showTutorialDialog, None, 'help', getStr('tutorialDetail'))
         showInfo = action(getStr('info'), self.showInfoDialog, None, 'help', getStr('info'))
+
+        markHeadAction = action("Mark head", lambda: self.canvas.createCircle("head"),
+                                'r', 'markhead', "Mark head")
+        markTailAction = action("Mark tail", lambda: self.canvas.createCircle("tail"),
+                                't', 'marktail', "Mark tail")
 
         zoom = QWidgetAction(self)
         zoom.setDefaultWidget(self.zoomWidget)
@@ -353,7 +381,7 @@ class MainWindow(QMainWindow, WindowMixin):
         # Auto saving : Enable auto saving if pressing next
         self.autoSaving = QAction(getStr('autoSaveMode'), self)
         self.autoSaving.setCheckable(True)
-        self.autoSaving.setChecked(settings.get(SETTING_AUTO_SAVE, False))
+        self.autoSaving.setChecked(settings.get(SETTING_AUTO_SAVE, True))
         # Sync single class mode from PR#106
         self.singleClassMode = QAction(getStr('singleClsMode'), self)
         self.singleClassMode.setShortcut("Ctrl+Shift+S")
@@ -377,7 +405,7 @@ class MainWindow(QMainWindow, WindowMixin):
             labels, advancedMode, None,
             hideAll, showAll, None,
             zoomIn, zoomOut, zoomOrg, None,
-            fitWindow, fitWidth))
+            fitWindow, fitWidth, markHeadAction, markTailAction))
 
         self.menus.file.aboutToShow.connect(self.updateFileMenu)
 
@@ -475,6 +503,10 @@ class MainWindow(QMainWindow, WindowMixin):
         # Open Dir if deafult file
         if self.filePath and os.path.isdir(self.filePath):
             self.openDirDialog(dirpath=self.filePath, silent=True)
+
+    def saveCircle(self, label):
+        self.addLabel(self.canvas.setLastLabel(label))
+        self.setDirty()
 
     def keyReleaseEvent(self, event):
         if event.key() == Qt.Key_Control:
