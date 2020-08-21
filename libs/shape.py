@@ -16,7 +16,7 @@ DEFAULT_LINE_COLOR = QColor(0, 255, 0, 128)
 DEFAULT_FILL_COLOR = QColor(255, 0, 0, 128)
 DEFAULT_SELECT_LINE_COLOR = QColor(255, 255, 255)
 DEFAULT_SELECT_FILL_COLOR = QColor(0, 128, 255, 155)
-DEFAULT_VERTEX_FILL_COLOR = QColor(0, 255, 0, 255)
+DEFAULT_VERTEX_FILL_COLOR = QColor(255, 0, 0, 155)
 DEFAULT_HVERTEX_FILL_COLOR = QColor(255, 0, 0)
 MIN_Y_LABEL = 10
 
@@ -41,7 +41,7 @@ class Shape(object):
     def __init__(self, label=None, line_color=None, difficult=False, paintLabel=False):
         self.label = label
         self.points = []
-        self.fill = False
+        self.fill = True
         self.selected = False
         self.difficult = difficult
         self.paintLabel = paintLabel
@@ -109,7 +109,8 @@ class Shape(object):
 
             painter.drawPath(line_path)
             painter.drawPath(vrtx_path)
-            painter.fillPath(vrtx_path, self.vertex_fill_color)
+            if self.selected:
+                painter.fillPath(vrtx_path, self.vertex_fill_color)
 
             # Draw text at the top-left
             if self.paintLabel:
