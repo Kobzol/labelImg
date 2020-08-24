@@ -66,7 +66,7 @@ class WindowMixin(object):
         return toolbar
 
 
-DEFAULT_BOX_SIZE = 50
+DEFAULT_BOX_SIZE = 150
 
 
 class MainWindow(QMainWindow, WindowMixin):
